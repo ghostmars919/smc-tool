@@ -1,0 +1,21 @@
+CC	?= gcc
+CFLAGS	?= -O2 -Wall -Wextra -Werror
+PREFIX	?= /usr/local
+BINDIR	:= $(PREFIX)/bin
+DESTDIR	?= 
+
+all:	smc
+
+smc:	src/smc-tool.c
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $<
+
+
+clean:
+	rm -f smc
+install: all
+	install -Dm0755 smc $(DESTDIR)$(BINDIR)/smc
+uninstall:
+	rm -f $(DESTDIR)$(BINDIR)/smc
+
+.PHONY: all clean install uninstall
+

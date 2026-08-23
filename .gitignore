@@ -1,0 +1,9 @@
+#Build artifacts
+/smc
+*.o
+*.a
+*.d
+
+# staging (make install DESTDIR=/tmp/...)
+/stage/
+/docs/
