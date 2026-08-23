@@ -1,4 +1,4 @@
-# smc_tool - Configurator for Intel MacBooks
+# smc-tool - Configurator for Intel MacBooks
 
 [![License: GPL v2](https://img.shields.io/badge/License-GPL_v2-blue.svg)](https://www.gnu.org/licenses/old-licenses/gpl-2.0)
 
