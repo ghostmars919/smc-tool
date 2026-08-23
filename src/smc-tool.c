@@ -180,10 +180,32 @@ static int write_smc(const char *key, const unsigned char *buf, unsigned char le
 }
 
 /*
- * Entry point: parses the command line, acquires direct access to the SMC
- * I/O ports and dispatches to read_smc/write_smc.
+ * Print the program usage to the given stream: stdout when help is
+ * explicitly requested (--help), stderr on a usage error. A single copy
+ * of the text keeps the two output paths in sync.
+ */
+static void usage(FILE *out)
+{
+	fprintf(out, "Usage: smc [OPTIONS] COMMAND\n");
+	fprintf(out, "\n");
+	fprintf(out, "Read and write Apple SMC keys directly from userspace (Linux on Intel Macs, requires root)\n");
+	fprintf(out, "Commands:\nget KEY\tread one byte from KEY\nset KEY VALUE\twrite VALUE (0-100) into KEY and verify by re-reading\n");
+	fprintf(out, "Options:\n\t-h, --help\tshow this help and exit\n-V, --version\tshow version information and exit\n");
+	fprintf(out, "Key is a 4-character SMC key (e.g. F0Mn). VALUE accepts decimal or hex (e.g. 40 or 0x28).\n");
+	fprintf(out, "\n");
+	fprintf(out, "Exit status:\n\t0\tsuccess\n\t1\truntime or permission error\n\t2\tusage error\n");
+	fprintf(out, "Warning: writing incorrect SMC keys may destabilize your machine.\n");
+	fprintf(out, "Examples:\n\tsudo smc get F0Mn\n\tsudo smc set F0Mn 40\n");
+}
+
+/*
+ * Entry point: parses global options (-h/--help, -V/--version), dispatches
+ * to the get/set subcommands and acquires direct access to the SMC I/O
+ * ports through ioperm().
  *
  * Usage:
+ *   smc --help           print the full usage on stdout and exit
+ *   smc --version        print the program version and exit
  *   smc get KEY          read one byte from KEY and print it (dec + hex)
  *   smc set KEY VALUE    write VALUE into KEY, then verify by re-reading it;
  *                        a mismatch is reported with a warning
@@ -197,17 +219,29 @@ static int write_smc(const char *key, const unsigned char *buf, unsigned char le
  */
 int main(int argc, char **argv)
 {
-	int is_set = (argc == 4 && strcmp(argv[1], "set") == 0);
-
-	if (!is_set && !(argc == 3 && strcmp(argv[1], "get") == 0)) {
-		fprintf(stderr, "uso: %s get CHIAVE | %s set CHIAVE VALORE\n",
-			argv[0], argv[0]);
+	if(argc == 1){
+		fprintf(stderr, "Error, please try with 'smc --help'\n");
 		return 2;
 	}
+	int is_set = (argc == 4 && strcmp(argv[1], "set") == 0);
+	if (!is_set && !(argc == 3 && strcmp(argv[1], "get") == 0)) {
+		if(!strcmp(argv[1], "-h") || !strcmp(argv[1], "--help")){
+			usage(stdout);
+			return 0;
+		}
+		if(!strcmp(argv[1], "-V") || !strcmp(argv[1], "--version")){
+			printf("smc-tool %s\n", VERSION);
+			return 0;
+		}
+		fprintf(stderr, "Try 'smc --help' for more information\n");
+		return 2;
+	}
+
 	if (geteuid() != 0) {
-		fprintf(stderr, "serve root\n");
+		fprintf(stderr, "Need root\n");
 		return 1;
 	}
+
 	if (ioperm(DATA_PORT, NR_PORTS, 1)) {
 		perror("ioperm");
 		return 1;
@@ -215,7 +249,7 @@ int main(int argc, char **argv)
 
 	const char *key = argv[2];
 	if (strlen(key) != 4) {
-		fprintf(stderr, "la chiave SMC deve essere di 4 caratteri\n");
+		fprintf(stderr, "The SMC key must be exactly 4 characters\n");
 		ioperm(DATA_PORT, NR_PORTS, 0);
 		return 2;
 	}
@@ -227,26 +261,26 @@ int main(int argc, char **argv)
 		char *end;
 		long v = strtol(argv[3], &end, 0);
 		if (*end || v < 0 || v > 100) {
-			fprintf(stderr, "valore non valido (0-100)\n");
+			fprintf(stderr, "Invalid value (0-100)\n");
 			ioperm(DATA_PORT, NR_PORTS, 0);
 			return 2;
 		}
 		buf[0] = (unsigned char)v;
 		rc = write_smc(key, buf, 1);
 		if (rc) {
-			fprintf(stderr, "scrittura fallita\n");
+			fprintf(stderr, "Write failed\n");
 		} else if (read_smc(key, buf, 1)) {
 			/* write succeeded but read-back verification failed */
-			printf("scrittura ok ma verifica non riuscita\n");
+			printf("Write ok, but not verified\n");
 		} else {
 			printf("%s = %d (0x%02x)%s\n", key, buf[0], buf[0],
 			       buf[0] == (unsigned char)v ? "" :
-			       " [ATTENZIONE: il valore letto e' diverso]");
+			       " [ALERT: read value not equal]");
 		}
 	} else {
 		rc = read_smc(key, buf, 1);
 		if (rc)
-			fprintf(stderr, "lettura fallita\n");
+			fprintf(stderr, "Read failed\n");
 		else
 			printf("%s = %d (0x%02x)\n", key, buf[0], buf[0]);
 	}

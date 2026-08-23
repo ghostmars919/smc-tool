@@ -4,10 +4,14 @@ PREFIX	?= /usr/local
 BINDIR	:= $(PREFIX)/bin
 DESTDIR	?= 
 
+VERSION	:= 0.0.1
+CPPFLAGS += -DVERSION=\"$(VERSION)\"
+
+
 all:	smc
 
 smc:	src/smc-tool.c
-	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $<
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(LDFLAGS) -o $@ $<
 
 
 clean:
