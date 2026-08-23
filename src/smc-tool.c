@@ -17,6 +17,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdbool.h>
 #include <unistd.h>
 #include <errno.h>
 #include <sys/io.h>
@@ -219,41 +220,36 @@ static void usage(FILE *out)
  */
 int main(int argc, char **argv)
 {
-	if(argc == 1){
-		fprintf(stderr, "Error, please try with 'smc --help'\n");
-		return 2;
-	}
-	int is_set = (argc == 4 && strcmp(argv[1], "set") == 0);
-	if (!is_set && !(argc == 3 && strcmp(argv[1], "get") == 0)) {
-		if(!strcmp(argv[1], "-h") || !strcmp(argv[1], "--help")){
-			usage(stdout);
-			return 0;
-		}
-		if(!strcmp(argv[1], "-V") || !strcmp(argv[1], "--version")){
-			printf("smc-tool %s\n", VERSION);
-			return 0;
-		}
-		fprintf(stderr, "Try 'smc --help' for more information\n");
-		return 2;
-	}
 
-	if (geteuid() != 0) {
+	int is_set = (argc == 4 && strcmp(argv[1], "set") == 0);
+	bool is_argc = argc > 1;
+
+	if (is_argc && (!strcmp(argv[1], "-h") || !strcmp(argv[1], "--help"))){
+		usage(stdout);
+		return 0;
+	}
+	if (is_argc && (!strcmp(argv[1], "-V") || !strcmp(argv[1], "--version"))){
+		printf("smc-tool %s\n", VERSION);
+		return 0;
+	}
+	if (!is_set && !(argc == 3 && strcmp(argv[1], "get") == 0)){
+		goto usage_error;
+	}
+	if (geteuid() != 0){
 		fprintf(stderr, "Need root\n");
 		return 1;
 	}
-
-	if (ioperm(DATA_PORT, NR_PORTS, 1)) {
+	if (ioperm(DATA_PORT, NR_PORTS, 1)){
 		perror("ioperm");
 		return 1;
 	}
 
 	const char *key = argv[2];
-	if (strlen(key) != 4) {
+	if (strlen(key) != 4){
 		fprintf(stderr, "The SMC key must be exactly 4 characters\n");
 		ioperm(DATA_PORT, NR_PORTS, 0);
 		return 2;
 	}
-
 	int rc = 0;
 	unsigned char buf[1] = {0};
 
@@ -267,17 +263,17 @@ int main(int argc, char **argv)
 		}
 		buf[0] = (unsigned char)v;
 		rc = write_smc(key, buf, 1);
-		if (rc) {
+		if (rc){
 			fprintf(stderr, "Write failed\n");
 		} else if (read_smc(key, buf, 1)) {
 			/* write succeeded but read-back verification failed */
 			printf("Write ok, but not verified\n");
-		} else {
+		} else{
 			printf("%s = %d (0x%02x)%s\n", key, buf[0], buf[0],
 			       buf[0] == (unsigned char)v ? "" :
 			       " [ALERT: read value not equal]");
 		}
-	} else {
+	} else{
 		rc = read_smc(key, buf, 1);
 		if (rc)
 			fprintf(stderr, "Read failed\n");
@@ -287,4 +283,8 @@ int main(int argc, char **argv)
 
 	ioperm(DATA_PORT, NR_PORTS, 0);
 	return rc ? 1 : 0;
+
+usage_error:
+	fprintf(stderr, "Try 'smc --help' for more information\n");
+	return 2;
 }
