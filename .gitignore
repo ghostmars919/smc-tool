@@ -7,3 +7,4 @@
 # staging (make install DESTDIR=/tmp/...)
 /stage/
 /docs/
+*.tar.gz
