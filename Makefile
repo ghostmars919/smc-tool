@@ -4,7 +4,7 @@ PREFIX	?= /usr/local
 BINDIR	:= $(PREFIX)/bin
 DESTDIR	?= 
 
-VERSION	:= 0.0.1
+VERSION	:= 0.0.2
 CPPFLAGS += -DVERSION=\"$(VERSION)\"
 
 
