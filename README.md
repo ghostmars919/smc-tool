@@ -14,6 +14,7 @@ kernel `applesmc` driver.
 
 It can:
 
+- **list** all keys in the SMC key index (`list`);
 - **read** the value of an SMC key (`get`);
 - **write** a numeric value (0-100) into an SMC key, with automatic
   verification via read-back (`set`).
@@ -56,10 +57,11 @@ make install PREFIX=$HOME/.local  # custom location
 ## Usage
 
 ```sh
-sudo ./smc get F0Mn      # reads the key (prints decimal and hex value)
-sudo ./smc set F0Mn 40   # writes 40 into the key and verifies by re-reading
-./smc --help             # full usage
-./smc --version          # version information
+sudo ./smc list             # enumerates all keys with type and length
+sudo ./smc get F0Mn         # reads the key (prints decimal and hex value)
+sudo ./smc set F0Mn 40      # writes 40 into the key and verifies by re-reading
+./smc --help                # full usage
+./smc --version             # version information
 ```
 
 - The key must be **exactly 4 characters** long.
@@ -86,7 +88,14 @@ Status bits read from `0x304`:
 | 0x02 | `ST_IB_CLOSED`      | input buffer closed: sending is allowed       |
 | 0x04 | `ST_BUSY`           | the SMC is processing a command               |
 
-Supported commands: `0x10` (READ) and `0x11` (WRITE).
+Supported commands:
+
+| Cmd   | Name               | Description                                      |
+|-------|--------------------|--------------------------------------------------|
+| 0x10  | `CMD_READ`         | Read key data                                    |
+| 0x11  | `CMD_WRITE`        | Write key data                                   |
+| 0x12  | `CMD_GET_KEY_BY_INDEX` | Get key name at given index in the key index |
+| 0x13  | `CMD_READ_TYPE`    | Query key type descriptor (type, length, flags)  |
 
 Key read sequence:
 
@@ -103,21 +112,25 @@ for a total timeout in the order of ~100 ms.
 
 ## Code structure (`src/smc-tool.c`)
 
-| Function        | Description |
-|-----------------|-------------|
-| `wait_status`   | Polls the status until `(status & mask) == val`, with exponential backoff; returns `-ETIMEDOUT` on timeout |
-| `send_byte`     | Waits for IB closed then BUSY active, writes a byte to the given port |
-| `send_command`  | Waits for IB closed and sends a command byte to `0x304` |
-| `smc_sane`      | Ensures the SMC is not busy; sends a READ flush command if needed |
-| `send_argument` | Sends the 4 key characters to the data port |
-| `read_smc`      | Full read of `len` bytes from the given key, with final drain |
-| `write_smc`     | Writes `len` bytes into the given key |
-| `main`          | Argument parsing (`get`/`set`), root check, `ioperm(0x300, 32)`, execution and output |
+| Function             | Description |
+|----------------------|-------------|
+| `wait_status`        | Polls the status until `(status & mask) == val`, with exponential backoff; returns `-ETIMEDOUT` on timeout |
+| `send_byte`          | Waits for IB closed then BUSY active, writes a byte to the given port |
+| `send_command`       | Waits for IB closed and sends a command byte to `0x304` |
+| `smc_sane`           | Ensures the SMC is not busy; sends a READ flush command if needed |
+| `send_argument`      | Sends the 4 key characters to the data port |
+| `smc_get_key_type`   | Queries the key type descriptor (CMD_READ_TYPE): returns length, type string and flags |
+| `read_smc`           | Full read of `len` bytes from the given key, with final drain |
+| `smc_read_key_count` | Reads the total number of public keys from the `#KEY` register (big-endian ui32) |
+| `smc_get_key_by_index` | Reads the 4-character key name at the given index (CMD_GET_KEY_BY_INDEX) |
+| `smc_list_keys`      | Enumerates all keys: for each index reads the name, type, and length |
+| `write_smc`          | Writes `len` bytes into the given key |
+| `main`               | Argument parsing (`list`/`get`/`set`), root check, `ioperm(0x300, 32)`, execution and output |
 
 Current limitations:
 
 - handles only **1-byte** keys, values **0-100**;
-- ignores the key type descriptor (SMC flags/format);
+- key enumeration works but ignores the flags byte (read/write/const);
 - no whitelist of keys considered safe;
 - no tests or packaging yet.
 
