@@ -4,6 +4,9 @@
 *.a
 *.d
 
+#Test binaries
+tests/test_*
+
 # staging (make install DESTDIR=/tmp/...)
 /stage/
 /docs/
