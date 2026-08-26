@@ -16,6 +16,10 @@ smc:	src/smc-tool.c
 
 clean:
 	rm -f smc
+
+test:	smc
+	bash tests/test_cli.sh
+
 install: all
 	install -Dm0755 smc $(DESTDIR)$(BINDIR)/smc
 uninstall:
